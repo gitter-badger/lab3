@@ -40,6 +40,7 @@ int *ptr_heap;
 void proda();
 void prodb();
 void konsa();
+void konsb();
 void down(int sem_nr);
 void up(int sem_nr);
 void text_push(int nr, int num);
@@ -85,6 +86,8 @@ void push(int a)
 	cout<<"[STOS] WartoscPush = "<<wartosc()<<endl;
 	if(wartosc()>19 && semctl(semafor,2,GETVAL))
 		down(proda_state);
+	if(*ptr_size>3 && !semctl(semafor,3,GETVAL))
+		up(konsb_state);
 	cout<<get_name()<<" zostawil size  "<<*ptr_size<<endl;
 	show_heap();
 	sleep(1);
@@ -107,6 +110,8 @@ void push_a(int a)
 	cout<<"[STOS] WartoscPushA = "<<wartosc()<<endl;
 	if(wartosc()>19 && semctl(semafor,2,GETVAL))
 		down(proda_state);
+	if(*ptr_size>3 && !semctl(semafor,3,GETVAL))
+		up(konsb_state);
 	cout<<get_name()<<" zostawil size"<<*ptr_size<<endl;
 	show_heap();
 	sleep(1);
@@ -128,15 +133,41 @@ int pop()
 	if(*ptr_size==0)
 		down(empty);
 	cout<<"[STOS] WartoscPoP = "<<wartosc()<<endl;
-	if(wartosc()<20)
+	if(wartosc()<20 && !semctl(semafor,2,GETVAL))
 		up(proda_state);
+	if(*ptr_size<4 && semctl(semafor,3,GETVAL))
+		down(konsb_state);
 	int out = *(ptr_heap+((*ptr_size)*4));
 	cout<<get_name()<<" zdjal ze stosu i zostawil size "<<*ptr_size<<endl;
 	show_heap();
 	up(critic);
 	return out;
 }
-
+int pop_b()
+{
+	cout<<get_name()<<" stara sie zdjac ze stosu"<<endl;
+	while((!(semctl(semafor,0,GETVAL))) && (!(semctl(semafor,3,GETVAL ) )))
+	{
+		cout<<"[STOS] jest pusty"<<get_name()<<endl;
+		sleep(3);
+	}
+	down(critic);
+	if(*ptr_size==9)
+		up(full);
+	(*ptr_size)--;
+	if(*ptr_size==0)
+		down(empty);
+	cout<<"[STOS] WartoscPopB = "<<wartosc()<<endl;
+	if(wartosc()<20 && !semctl(semafor,2,GETVAL))
+		up(proda_state);
+	if(*ptr_size<4 && semctl(semafor,3,GETVAL))
+		down(konsb_state);
+	int out = *(ptr_heap+((*ptr_size)*4));
+	cout<<get_name()<<" zdjal ze stosu i zostawil size "<<*ptr_size<<endl;
+	show_heap();
+	up(critic);
+	return out;
+}
 void down(int sem_nr)
 {
 	union semun arg;
@@ -145,7 +176,7 @@ void down(int sem_nr)
 	while(1)
 	{
 		s=semctl(semafor,sem_nr,GETVAL);
-		if( (s==1 && ( get_id()!=0  ) )||(s==1 && get_id()==0 && semctl(semafor,2,GETVAL) ) )
+		if( (s==1 && get_id()==3 && semctl(semafor,3,GETVAL) ) || (s==1 && ( get_id()==1 || get_id()==2  ) )||(s==1 && get_id()==0 && semctl(semafor,2,GETVAL) ) )
 		{
 			semctl(semafor,sem_nr,SETVAL,arg);
 			cout<<"[SEMAFOR] o nr "<<sem_nr<<" zostal opuszczony przez ["<<get_name()<<"]"<<endl;
@@ -201,7 +232,7 @@ void child(int n)
 	}
 	else if(n==3)
 	{
-
+		konsb();
 	}
 }
 
@@ -213,7 +244,7 @@ void init()
 		semctl(semafor,i,SETVAL,arg);
 	arg.val=0;
 	semctl(semafor,0,SETVAL,arg);
-
+	semctl(semafor,3,SETVAL,arg);
 	pamiec = shmget(2014,40,IPC_CREAT | 0666);
 	ptr_size = (int *)shmat(pamiec,0,0);
 	ptr_heap = (int *)ptr_size+4;
@@ -318,6 +349,18 @@ void konsa()
 //		show_heap();
 		cout<<get_name()<<" ma size "<<*ptr_size<<endl;
 //		sleep(losuj(1,10));
+		cout<<i+1<<" "<<get_name()<<endl;
+		sleep(losuj(1,10));
+	}
+}
+
+void konsb()
+{
+	for(int i=0;i<products;i++)
+	{
+		int out = pop_b();
+		cout<<get_name()<<" zdjal ze stosu liczbe: "<<out<<endl;
+		cout<<get_name()<<" ma size "<<*ptr_size<<endl;
 		cout<<i+1<<" "<<get_name()<<endl;
 		sleep(losuj(1,10));
 	}
